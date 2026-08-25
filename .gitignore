@@ -1,0 +1,15 @@
+# Qt Build
+build-*/
+cmake-build-*/
+*.autosave
+*.qbs.user
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+
+# IDE
+.qtcopreator/
+*.user
