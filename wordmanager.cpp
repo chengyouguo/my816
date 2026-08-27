@@ -4,6 +4,8 @@
 #include <QDebug>
 #include <random>  // ✅ 必须加这一行！
 #include <QSettings>
+#include <QDir>
+#include <QCoreApplication>
 WordManager::WordManager(QObject *parent) : QObject(parent) {}
 
 WordManager::~WordManager()
@@ -14,8 +16,16 @@ WordManager::~WordManager()
 
 bool WordManager::init(const QString &dbPath)
 {
+    QString dbDir = QDir::cleanPath(QCoreApplication::applicationDirPath()
+  + "/../../../mypro_data");
+
+    QDir().mkpath(dbDir);  // 确保目录存在
+
+    QString dbPath1 = dbDir + "/words.db";
+
     m_db = QSqlDatabase::addDatabase("QSQLITE", "word-db");
-    m_db.setDatabaseName(dbPath);
+    m_db.setDatabaseName(dbPath1);
+
     if (!m_db.open()) {
         qDebug() << "DB open failed:" << m_db.lastError().text();
         return false;
