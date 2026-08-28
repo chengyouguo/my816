@@ -139,12 +139,29 @@ void WordBookTab::on_btnAddWord_clicked()
     QString word = ui->editWord->text().trimmed();
     if (word.isEmpty()) return;
 
-    QString path = QDir::currentPath() + "/audio/" + word + ".mp3";
+
+    // 获取当前工作目录
+            QDir currentDir(QDir::currentPath());
+
+    // 确保 audio 目录存在（不存在则自动创建）
+    if (!currentDir.exists("audio")) {
+        currentDir.mkpath("audio");
+    }
+
+    // 规范地拼接文件路径 (自动处理斜杠)
+    QString path = currentDir.filePath(QString("audio/%1.mp3").arg(word));
+
+    // 判断文件是否存在并播放
     if (QFile::exists(path)) {
         AudioManager::instance().play(path);
         emit statusMessage(QString("播放：%1").arg(word));
         return;
+    } else {
+        // 建议增加文件不存在时的提示
+        emit statusMessage(QString("音频不存在：%1").arg(path));
     }
+
+
 
     QString url = "https://dict.youdao.com/dictvoice?audio=" + word + "&type=2";
     emit statusMessage(QString("下载中：%1").arg(word));
