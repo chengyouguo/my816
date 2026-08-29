@@ -13,23 +13,28 @@ qt_standard_project_setup()
 
 set(SOURCES
     main.cpp
-        mainwindow.cpp mainwindow.h mainwindow.ui
-        wordmanager.cpp wordmanager.h
-        wordbooktab.cpp wordbooktab.h wordbooktab.ui
-        reviewtab.cpp reviewtab.h reviewtab.ui
-        dictationtab.cpp dictationtab.h dictationtab.ui
-        audiofetcher.cpp audiofetcher.h
-        audiomanager.cpp
-        downloader.cpp
-        wordbooktab.cpp
-        wordbooktab.h
+    basetab.cpp
+    basetab.h
+    mainwindow.cpp
+    mainwindow.h
+    wordmanager.cpp
+    wordmanager.h
+    wordbooktab.cpp
+    wordbooktab.h
+    reviewtab.cpp
+    reviewtab.h
+    dictationtab.cpp
+    dictationtab.h
+    audiofetcher.cpp
+    audiofetcher.h
+    audiomanager.cpp
+    downloader.cpp
 )
 
-qt_add_executable(GradeWordApp ${SOURCES}
-    mainwindow.ui
-    basetab.h
-    basetab.cpp)
+qt_add_executable(GradeWordApp ${SOURCES})
 
+set_target_properties(GradeWordApp PROPERTIES
+    WIN32_EXECUTABLE TRUE)
 target_link_libraries(GradeWordApp PRIVATE
     Qt6::Core
     Qt6::Widgets

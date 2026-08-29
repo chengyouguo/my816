@@ -9,6 +9,7 @@ BaseTab::BaseTab(WordManager *mgr, QWidget *parent)
     // ✅ 信号只在这里连一次
     connect(m_mgr, &WordManager::gradeChanged,
             this, &BaseTab::handleGradeChanged);
+
 }
 
 void BaseTab::handleGradeChanged(const QString &grade)

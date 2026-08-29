@@ -10,51 +10,72 @@
     <height>703</height>
    </rect>
   </property>
-  <layout class="QGridLayout" name="gridLayout_2">
-   <item row="0" column="0">
-    <layout class="QGridLayout" name="gridLayout">
-     <item row="0" column="0">
-      <widget class="QLabel" name="lblProgress">
-       <property name="text">
-        <string>进度</string>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QLabel" name="lblTitle">
+     <property name="text">
+      <string>听写测试：</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QLineEdit" name="editInput">
+       <property name="readOnly">
+        <bool>false</bool>
        </property>
       </widget>
      </item>
-     <item row="1" column="0" colspan="2">
+     <item>
       <widget class="QPushButton" name="btnPlay">
        <property name="text">
         <string>播放</string>
        </property>
       </widget>
      </item>
-     <item row="1" column="2">
-      <widget class="QPushButton" name="btnSubmit">
-       <property name="text">
-        <string>提交</string>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="1" colspan="2">
-      <widget class="QLineEdit" name="editInput">
-       <property name="placeholderText">
-        <string>输入单词后回车</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0" colspan="3">
-      <widget class="QLabel" name="lblScore"/>
-     </item>
-     <item row="5" column="1">
-      <widget class="QLabel" name="lblResult">
-       <property name="text">
-        <string>点击播放</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="0" colspan="3">
-      <widget class="QTableWidget" name="tableWidget"/>
-     </item>
     </layout>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btnStart">
+     <property name="text">
+      <string>开始测试</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblResult">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTableWidget" name="tableWidget">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+     <property name="showGrid">
+      <bool>true</bool>
+     </property>
+     <column>
+      <property name="text">
+       <string>错词</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>释义</string>
+      </property>
+     </column>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="lblSummary">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
