@@ -6,7 +6,10 @@
 #include <QSettings>
 #include <QDir>
 #include <QCoreApplication>
-WordManager::WordManager(QObject *parent) : QObject(parent) {}
+WordManager::WordManager(QObject *parent) : QObject(parent) {
+    initCurrentGrade();
+    qDebug() << "Using saved grade:" << m_currentGrade;
+}
 
 WordManager::~WordManager()
 {
@@ -17,7 +20,7 @@ WordManager::~WordManager()
 bool WordManager::init(const QString &dbPath)
 {
     QString dbDir = QDir::cleanPath(QCoreApplication::applicationDirPath()
-  + "/../../../mypro_data");
+  + "/mypro_data");
 
     QDir().mkpath(dbDir);  // 确保目录存在
 
@@ -47,17 +50,18 @@ bool WordManager::init(const QString &dbPath)
     )");
     if (!ok) qDebug() << "CREATE words failed:" << query.lastError().text();
 
-    ok &= query.exec(R"(
-        CREATE TABLE IF NOT EXISTS grade_word_map (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            grade TEXT NOT NULL,
-            word TEXT NOT NULL,
-            wrong_count INTEGER DEFAULT 0,
-            UNIQUE(grade, word)
-        );
-    )");
-    if (!ok) qDebug() << "CREATE grade_word_map failed:" << query.lastError().text();
-
+   ok &=query.exec(R"(
+    CREATE TABLE IF NOT EXISTS grade_word_map (
+        id INTEGER PRIMARY KEY,
+        grade TEXT,
+        word TEXT,
+        wrong_count INTEGER DEFAULT 0,
+        last_wrong_time TEXT
+    )
+)");
+     if (!ok) qDebug() << "CREATE words failed:" << query.lastError().text();
+    // 兼容旧库
+   query.exec("ALTER TABLE grade_word_map ADD COLUMN last_wrong_time TEXT");
     ok &= query.exec(R"(
         CREATE TABLE IF NOT EXISTS grades (
             grade TEXT PRIMARY KEY
@@ -227,10 +231,6 @@ bool WordManager::removeGrade(const QString &grade)
 
     return true;
 }
-QString WordManager::currentGrade() const
-{
-    return m_currentGrade;
-}
 
 void WordManager::setCurrentGrade(const QString &grade)
 {
@@ -288,6 +288,8 @@ QVector<QVariantMap> WordManager::getWeightedWordsOfGrade(const QString &grade) 
 }
 void WordManager::markWordUnknown(const QString &grade, const QString &word)
 {
+    qDebug() << "markWordUnknown called with grade:" << grade << "word:" << word;
+
     QSqlQuery q(m_db);
     q.prepare(R"(
         UPDATE grade_word_map
@@ -297,7 +299,11 @@ void WordManager::markWordUnknown(const QString &grade, const QString &word)
     )");
     q.addBindValue(grade);
     q.addBindValue(word);
-    q.exec();
+    if (!q.exec()) {
+        qDebug() << "标记错词失败:" << q.lastError().text();
+    } else {
+        qDebug() << "影响行数:" << q.numRowsAffected();
+    }
 }
 
 void WordManager::markWordKnown(const QString &grade, const QString &word)
@@ -322,4 +328,7 @@ void WordManager::initCurrentGrade()
         setCurrentGrade(last);
     else if (!grades().isEmpty())
         setCurrentGrade(grades().first());
+}
+QString WordManager::currentGrade() const {
+    return m_currentGrade.isEmpty() ? "一年级" : m_currentGrade;
 }

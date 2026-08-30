@@ -18,7 +18,7 @@ protected:
 
     // ✅ 只补一次当前状态
     void showEvent(QShowEvent *event) override;
-    void hideEvent(QHideEvent *event) override;
+   void hideEvent(QHideEvent *event) override;
 signals:
     // 👇 就是这一行，补上它！
     void statusMessage(const QString &msg);

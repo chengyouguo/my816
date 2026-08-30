@@ -39,6 +39,14 @@ WordBookTab::WordBookTab(WordManager *mgr, QWidget *parent)
     connect(ui->btnSearch,  &QPushButton::clicked, this, &WordBookTab::on_btnSearch_clicked);
     connect(ui->btnAddWord, &QPushButton::clicked, this, &WordBookTab::on_btnAddWord_clicked);
     connect(ui->btnplayer,  &QPushButton::clicked, this, &WordBookTab::on_btnplayer_clicked);
+    connect(ui->tableView, &QTableView::clicked,
+            this, [this](const QModelIndex &index){
+                if (!index.isValid()) return;
+                auto *model = qobject_cast<QStandardItemModel*>(ui->tableView->model());
+                if (!model) return;
+                QString word = model->item(index.row(), 0)->text();
+                ui->editWord->setText(word);  // 触发 textChanged → 自动搜索填充
+            });
 }
 
 WordBookTab::~WordBookTab()
@@ -68,7 +76,12 @@ void WordBookTab::onGradeChanged(const QString &grade)
             new QStandardItem(w["phonetic"].toString()),
             new QStandardItem(w["definition"].toString())
         });
-
+    // ✅ 成功后复位
+    ui->editWord->clear();
+    ui->editPhonetic->clear();
+    ui->editDef->clear();
+    ui->editExample->clear();
+    ui->editWord->setFocus();  // 焦点回到单词框，直接敲下一个
     if (ui->statusLabel)
         ui->statusLabel->setText(QString("当前年级：%1 | 共%2个").arg(grade).arg(words.size()));
 
@@ -98,7 +111,12 @@ void WordBookTab::on_btnSearch_clicked()
 }
 
 void WordBookTab::on_btnAddWord_clicked()
-{ QString grade = manager()->currentGrade();
+{   if (ui->editWord->text().isEmpty()) {
+         ui->editWord->setFocus();  // 焦点回到单词框，直接敲下一个
+       // QMessageBox::warning(this, "提示", "单词不能为空");
+        return;
+    }
+    QString grade = manager()->currentGrade();
     //QString grade = currentGrade(); // ✅ 用基类接口
     if (grade.isEmpty()) {
         emit statusMessage("请先在主窗口选择年级");
@@ -117,10 +135,10 @@ void WordBookTab::on_btnAddWord_clicked()
     QString def  = ui->editDef->text().trimmed();
     QString exam = ui->editExample->text().trimmed();
 
-    if (word.isEmpty() || def.isEmpty()) {
-        QMessageBox::warning(this, "提示", "单词和释义不能为空");
-        return;
-    }
+  //  if (word.isEmpty() || def.isEmpty()) {
+   //     QMessageBox::warning(this, "提示", "单词和释义不能为空");
+    //    return;
+  //  }
 
     on_btnplayer_clicked();
 
@@ -141,15 +159,29 @@ void WordBookTab::on_btnAddWord_clicked()
 
 
     // 获取当前工作目录
-            QDir currentDir(QDir::currentPath());
+          //  QDir currentDir(QDir::currentPath());
+//
+            // 音频目录：跟 exe 走，和 mypro_data 同级
+            QString audioDir = QDir::cleanPath(QCoreApplication::applicationDirPath() + "/audio");
+            QDir().mkpath(audioDir);
+
+            QString path = audioDir + "/" + word + ".mp3";
+
+            if (QFile::exists(path)) {
+                AudioManager::instance().play(path);
+                emit statusMessage(QString("播放：%1").arg(word));
+            } else {
+                emit statusMessage(QString("音频不存在：%1").arg(path));
+            }
+  //
 
     // 确保 audio 目录存在（不存在则自动创建）
-    if (!currentDir.exists("audio")) {
-        currentDir.mkpath("audio");
-    }
+   // if (!currentDir.exists("audio")) {
+      //  currentDir.mkpath("audio");
+   // }
 
     // 规范地拼接文件路径 (自动处理斜杠)
-    QString path = currentDir.filePath(QString("audio/%1.mp3").arg(word));
+   // QString path = currentDir.filePath(QString("audio/%1.mp3").arg(word));
 
     // 判断文件是否存在并播放
     if (QFile::exists(path)) {

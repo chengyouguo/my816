@@ -115,7 +115,8 @@ MainWindow::MainWindow(QWidget *parent)
         if (msg.startsWith("当前年级"))
             permanent->setText(msg);
         else
-            statusBar()->showMessage(msg, 3000);
+           // statusBar()->showMessage(msg, 3000);
+        statusBar()->showMessage(msg);
     };
     connect(wordBook,     &WordBookTab::statusMessage, this, handle);
     connect(reviewTab,    &ReviewTab::statusMessage,    this, handle);

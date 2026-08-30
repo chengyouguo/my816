@@ -33,6 +33,8 @@ set(SOURCES
 
 qt_add_executable(GradeWordApp ${SOURCES})
 
+set_target_properties(GradeWordApp PROPERTIES
+    WIN32_EXECUTABLE TRUE)
 target_link_libraries(GradeWordApp PRIVATE
     Qt6::Core
     Qt6::Widgets

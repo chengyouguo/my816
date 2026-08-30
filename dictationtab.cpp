@@ -160,8 +160,9 @@ void DictationTab::finishTest()
 {
     ui->lblTitle->setText("听写测试结束");
     // 汇总只在结束显示
-    ui->lblSummary->setText(QString("共 %1 题，正确 %2 题，错误 %3 题")
-                                .arg(m_total).arg(m_correct).arg(m_total - m_correct));
+   ui->lblSummary->setText(QString("共 %1 题，正确 %2 题，错误 %3 题")
+                               .arg(m_total).arg(m_correct).arg(m_total - m_correct));
+    ui->lblSummary->hide();
     ui->editInput->setEnabled(false);
     ui->btnPlay->setEnabled(false);
     ui->btnStart->setEnabled(true);

@@ -14,3 +14,7 @@ cmake_install.cmake
 .qtcopreator/
 *.user
 build/
+audio/
+mypro_data/
+.qtcreator/
+*.user.*
