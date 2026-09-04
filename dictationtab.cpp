@@ -2,6 +2,7 @@
 #include "ui_dictationtab.h"
 #include "wordmanager.h"
 #include "audiomanager.h"
+#include "audioplayer.h"
 #include <QTimer>
 #include <QDir>
 #include <QTableWidgetItem>
@@ -63,6 +64,7 @@ void DictationTab::onStart()
     ui->editInput->setFocus();
     emit statusMessage(QString("听写开始，共 %1 题").arg(m_total));
     loadNext();
+    emit testStarted();
 }
 void DictationTab::resetUI()
 {
@@ -106,7 +108,8 @@ void DictationTab::onPlay()
     QString word = m_current["word"].toString();
     QString path = QDir::currentPath() + "/audio/" + word + ".mp3";
     if (QFile::exists(path)) {
-        AudioManager::instance().play(path);
+      //  AudioManager::instance().play(path);
+        AudioPlayer::instance().play(word);
        // emit statusMessage(QString("播放：%1").arg(word));
     } else {
         emit statusMessage(QString("音频不存在：%1，已跳过").arg(word));
@@ -168,6 +171,7 @@ void DictationTab::finishTest()
     ui->btnStart->setEnabled(true);
     m_current.clear();
     emit statusMessage(ui->lblSummary->text());
+    emit testFinished();
 }
 
 /* ================= 年级变化 / 显示 ================= */
@@ -175,17 +179,21 @@ void DictationTab::finishTest()
 void DictationTab::onGradeChanged(const QString &grade)
 {
     if (grade.isEmpty() || !manager()) return;
+
+    // 测试进行中，不重置
+    if (m_index > 0 && m_index < m_total) {
+        emit statusMessage(QString("听写进行中，已切换至：%1").arg(grade));
+        return;
+    }
+
     resetUI();
     emit statusMessage(QString("听写：%1（%2个）").arg(grade)
-                       .arg(manager()->wordsOfGrade(grade).size()));
+                           .arg(manager()->wordsOfGrade(grade).size()));
 }
-
 
 
 void DictationTab::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
-    QString grade = currentGrade();
-    if (grade.isEmpty() && manager()) grade = manager()->currentGrade();
-    if (!grade.isEmpty()) onGradeChanged(grade);
+    ensureGradeAndShow();
 }

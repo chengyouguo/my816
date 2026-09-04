@@ -1,0 +1,51 @@
+$ErrorActionPreference = "Stop"
+
+# ====== 你的环境（已确认） ======
+$QtDir       = "C:\Qt\6.11.2\mingw_64"
+$windeployqt = "$QtDir\bin\windeployqt.exe"
+$Dist        = "C:\Users\pnm\Desktop\GradeWordApp_release"
+$AppName     = "GradeWordApp"
+# ============================
+
+# 0. 检查 windeployqt 存在
+if (-not (Test-Path $windeployqt)) {
+    Write-Error "找不到 windeployqt：$windeployqt"
+    Write-Host "请确认 Qt 安装路径是否正确" -ForegroundColor Yellow
+    exit 1
+}
+
+# 1. 编译（Release）
+Write-Host "==> 开始编译..." -ForegroundColor Cyan
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+
+# 2. 准备发布目录
+Remove-Item $Dist -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $Dist | Out-Null
+
+# 3. 自动定位 exe
+$exe = @(
+    "build\$AppName.exe",
+    "build\Release\$AppName.exe",
+    "build\Debug\$AppName.exe"
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if (-not $exe) {
+    Write-Error "找不到 $AppName.exe，请先确认 cmake 编译成功"
+    exit 1
+}
+Write-Host "==> 找到 exe：$exe" -ForegroundColor Green
+Copy-Item $exe $Dist -Force
+
+# 4. 🔑 部署 Qt + MinGW 运行时
+Write-Host "==> 运行 windeployqt..." -ForegroundColor Cyan
+& $windeployqt --release --no-translations --compiler-runtime $Dist\$AppName.exe
+
+# 5. 拷贝项目资源（如有，按需取消注释）
+# Copy-Item "audio"  $Dist -Recurse -Force -ErrorAction SilentlyContinue
+# Copy-Item "images" $Dist -Recurse -Force -ErrorAction SilentlyContinue
+# Copy-Item "config.json" $Dist -Force -ErrorAction SilentlyContinue
+
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "✅ 打包完成：$Dist" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green

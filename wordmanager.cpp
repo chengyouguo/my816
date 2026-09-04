@@ -7,7 +7,11 @@
 #include <QDir>
 #include <QCoreApplication>
 WordManager::WordManager(QObject *parent) : QObject(parent) {
+    if (!init(QCoreApplication::applicationDirPath())) {
+        qFatal("数据库打开失败，程序终止！请检查 mypro_data/words.db");
+    }
     initCurrentGrade();
+   // initCurrentGrade();
     qDebug() << "Using saved grade:" << m_currentGrade;
 }
 
@@ -70,10 +74,10 @@ bool WordManager::init(const QString &dbPath)
     if (!ok) qDebug() << "CREATE grades failed:" << query.lastError().text();
 
     return ok;
-    if (!m_currentGrade.isEmpty()) {
-        emit gradeChanged(m_currentGrade);
-    }
-    return true;
+   // if (!m_currentGrade.isEmpty()) {
+      //  emit gradeChanged(m_currentGrade);
+  //  }
+   // return true;
 
 }
 bool WordManager::gradeExists(const QString &grade) const
@@ -149,14 +153,37 @@ QVector<QVariantMap> WordManager::wordsOfGrade(const QString &grade)
 /* ========== 添加到当前年级 ========== */
 bool WordManager::addWordToGrade(const QString &grade, const QString &word)
 {
-    QSqlQuery q(m_db);
-    q.prepare(R"(
-        INSERT OR IGNORE INTO grade_word_map (grade, word)
-        VALUES (?, ?)
-    )");
-    q.addBindValue(grade);
-    q.addBindValue(word);
-    return q.exec();
+    if (grade.isEmpty() || word.isEmpty())
+        return false;
+
+    // ── 1. 先查 words 总表有没有这个词 ──
+    QSqlQuery q1(m_db);
+    q1.prepare("SELECT 1 FROM words WHERE word = ?");
+    q1.addBindValue(word);
+    if (!q1.exec() || !q1.next()) {
+        // 总表里没有这个词 → 不能加
+        qDebug() << "words 总表中不存在:" << word;
+        return false;
+    }
+
+    // ── 2. 再查年级表里有没有（你的 wordInGrade 已经有这功能） ──
+    if (wordInGrade(grade, word)) {
+        // 已经有了 → 不加
+        qDebug() << grade << "里已经有" << word << "了，跳过";
+        return false;
+    }
+
+    // ── 3. 都没有 → 插入映射 ──
+    QSqlQuery q2(m_db);
+    q2.prepare("INSERT INTO grade_word_map (grade, word) VALUES (?, ?)");
+    q2.addBindValue(grade);
+    q2.addBindValue(word);
+    if (!q2.exec()) {
+        qDebug() << "插入映射失败:" << q2.lastError().text();
+        return false;
+    }
+
+    return true;
 }
 
 /* ========== 是否已存在 ========== */
@@ -327,8 +354,8 @@ void WordManager::initCurrentGrade()
     if (!last.isEmpty() && gradeExists(last))
         setCurrentGrade(last);
     else if (!grades().isEmpty())
-        setCurrentGrade(grades().first());
+      setCurrentGrade(grades().constFirst());
 }
 QString WordManager::currentGrade() const {
-    return m_currentGrade.isEmpty() ? "一年级" : m_currentGrade;
+    return m_currentGrade;
 }

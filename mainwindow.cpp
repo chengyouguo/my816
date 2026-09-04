@@ -122,11 +122,15 @@ MainWindow::MainWindow(QWidget *parent)
     connect(reviewTab,    &ReviewTab::statusMessage,    this, handle);
     connect(dictationTab, &DictationTab::statusMessage, this, handle);
 
+    // 听写测试锁定 Tab
+    connect(dictationTab, &DictationTab::testStarted, this, &MainWindow::onTestStarted);
+    connect(dictationTab, &DictationTab::testFinished, this, &MainWindow::onTestFinished);
     // ─────────────────────────────
     // 9. 启动页
     // ─────────────────────────────
     ui->tabWidget->setCurrentIndex(1);
     statusBar()->showMessage("程序已启动，数据库已连接");
+
 }
 
 MainWindow::~MainWindow()
@@ -181,3 +185,39 @@ void MainWindow::on_btnDelGrade_clicked()
         statusBar()->showMessage("已删除年级：" + g);
     }
 }
+void MainWindow::onTestStarted()
+{
+    m_testInProgress = true;
+
+    // 禁用其他 Tab（听写 Tab 本身不禁用）
+    int count = ui->tabWidget->count();
+    for (int i = 0; i < count; ++i) {
+        if (ui->tabWidget->widget(i) != dictationTab) {
+            ui->tabWidget->setTabEnabled(i, false);
+        }
+    }
+
+    // 禁用年级切换相关控件（可选）
+    ui->comboGrade->setEnabled(false);
+    ui->btnApplyGrade->setEnabled(false);
+    ui->btnAddGrade->setEnabled(false);
+    ui->btnDelGrade->setEnabled(false);
+}
+
+void MainWindow::onTestFinished()
+{
+    m_testInProgress = false;
+
+    // 恢复所有 Tab
+    int count = ui->tabWidget->count();
+    for (int i = 0; i < count; ++i) {
+        ui->tabWidget->setTabEnabled(i, true);
+    }
+
+    // 恢复年级切换控件
+    ui->comboGrade->setEnabled(true);
+    ui->btnApplyGrade->setEnabled(true);
+    ui->btnAddGrade->setEnabled(true);
+    ui->btnDelGrade->setEnabled(true);
+}
+

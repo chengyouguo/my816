@@ -1,27 +1,23 @@
 #include "wordbooktab.h"
 #include "ui_wordbooktab.h"
 #include "wordmanager.h"
-#include "downloader.h"
-#include "audiomanager.h"
+#include "audioplayer.h"   // ✅ AudioManager → AudioPlayer
+
 #include <QStandardItemModel>
 #include <QHeaderView>
 #include <QMessageBox>
 #include <QSettings>
 #include <QDir>
+#include <QFileInfo>
 
 WordBookTab::WordBookTab(WordManager *mgr, QWidget *parent)
     : BaseTab(mgr, parent), ui(new Ui::WordBookTab)
 {
     ui->setupUi(this);
+
     // 让表格组占满窗口拉高后的剩余空间
     ui->gridLayout->setRowStretch(3, 1);
-
-    // 让表格在 groupTable 内部也占满
     ui->gridLayout_3->setRowStretch(0, 1);
-    // ✅ 删掉这两行（BaseTab 已经干了）
-    // m_mgr = mgr;
-    // connect(m_mgr, &WordManager::gradeChanged, this, &WordBookTab::onGradeChanged);
-    // onGradeChanged(m_mgr->currentGrade());
 
     // 表格初始化
     auto *model = new QStandardItemModel(this);
@@ -33,12 +29,23 @@ WordBookTab::WordBookTab(WordManager *mgr, QWidget *parent)
     ui->tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     ui->tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
 
+    // 年级变化信号（BaseTab 已连接 gradeChanged → onGradeChanged）
+    // 首次加载
+    onGradeChanged(manager() ? manager()->currentGrade() : QString());
+
     // 信号槽
+    connect(&AudioPlayer::instance(), &AudioPlayer::playingFinished,
+            this, [this]() {
+                ui->btnplayer->setEnabled(true);
+            });
+
     connect(ui->editWord, &QLineEdit::textChanged,
             this, [this](const QString &t){ if(!t.isEmpty()) on_btnSearch_clicked(); });
+
     connect(ui->btnSearch,  &QPushButton::clicked, this, &WordBookTab::on_btnSearch_clicked);
     connect(ui->btnAddWord, &QPushButton::clicked, this, &WordBookTab::on_btnAddWord_clicked);
     connect(ui->btnplayer,  &QPushButton::clicked, this, &WordBookTab::on_btnplayer_clicked);
+
     connect(ui->tableView, &QTableView::clicked,
             this, [this](const QModelIndex &index){
                 if (!index.isValid()) return;
@@ -69,25 +76,27 @@ void WordBookTab::onGradeChanged(const QString &grade)
 
     model->removeRows(0, model->rowCount());
 
-    QVector<QVariantMap> words = manager()->wordsOfGrade(grade); // ✅ 用 manager()
-    for (const auto &w : words)
+    QVector<QVariantMap> words = manager()->wordsOfGrade(grade);
+    for (const auto &w : words) {
         model->appendRow({
             new QStandardItem(w["word"].toString()),
             new QStandardItem(w["phonetic"].toString()),
             new QStandardItem(w["definition"].toString())
         });
-    // ✅ 成功后复位
+    }
+
+    // 复位输入区
     ui->editWord->clear();
     ui->editPhonetic->clear();
     ui->editDef->clear();
     ui->editExample->clear();
-    ui->editWord->setFocus();  // 焦点回到单词框，直接敲下一个
+    ui->editWord->setFocus();
+
     if (ui->statusLabel)
         ui->statusLabel->setText(QString("当前年级：%1 | 共%2个").arg(grade).arg(words.size()));
 
     emit statusMessage(QString("已加载：%1（%2个）").arg(grade).arg(words.size()));
 }
-
 
 void WordBookTab::on_btnSearch_clicked()
 {
@@ -106,122 +115,110 @@ void WordBookTab::on_btnSearch_clicked()
 
     ui->editPhonetic->setText(w["phonetic"].toString());
     ui->editDef->setText(w["definition"].toString());
-   ui->editExample->setText(w["example"].toString()); // ✅ 正确
+    ui->editExample->setText(w["example"].toString());
     emit statusMessage(QString("已找到：%1").arg(w["word"].toString()));
 }
 
 void WordBookTab::on_btnAddWord_clicked()
-{   if (ui->editWord->text().isEmpty()) {
-         ui->editWord->setFocus();  // 焦点回到单词框，直接敲下一个
-       // QMessageBox::warning(this, "提示", "单词不能为空");
+{
+    if (ui->editWord->text().isEmpty()) {
+        ui->editWord->setFocus();
         return;
     }
+
     QString grade = manager()->currentGrade();
-    //QString grade = currentGrade(); // ✅ 用基类接口
     if (grade.isEmpty()) {
         emit statusMessage("请先在主窗口选择年级");
         return;
     }
 
-    // ✅ 不再读 comboGrade，直接问 Manager
-    // grade = manager()->currentGrade();
-  //  if (grade.isEmpty()) {
-      //  emit statusMessage("请先在主窗口选择年级");
-      //  return;
-   // }
-
     QString word = ui->editWord->text().trimmed();
-    QString phon = ui->editPhonetic->text().trimmed();
-    QString def  = ui->editDef->text().trimmed();
-    QString exam = ui->editExample->text().trimmed();
+    QString phon = ui->editPhonetic->text().trimmed(); (void)phon;
+    QString def  = ui->editDef->text().trimmed();      (void)def;
+    QString exam = ui->editExample->text().trimmed();  (void)exam;
 
-  //  if (word.isEmpty() || def.isEmpty()) {
-   //     QMessageBox::warning(this, "提示", "单词和释义不能为空");
-    //    return;
-  //  }
-
-    on_btnplayer_clicked();
-
+    // 替换原有的 bool ok = manager()->addWordToGrade(grade, word); 及下方if块
     bool ok = manager()->addWordToGrade(grade, word);
+    auto *model = qobject_cast<QStandardItemModel*>(ui->tableView->model());
+
     if (ok) {
-        onGradeChanged(grade); // 刷新当前表格
-        emit statusMessage(QString("已添加：%1").arg(word));
-    } else {
-        QMessageBox::critical(this, "错误", "添加失败");
-    }
-    }
-
-    void WordBookTab::on_btnplayer_clicked()
-{
-    if (!manager()) return;
-    QString word = ui->editWord->text().trimmed();
-    if (word.isEmpty()) return;
-
-
-    // 获取当前工作目录
-          //  QDir currentDir(QDir::currentPath());
-//
-            // 音频目录：跟 exe 走，和 mypro_data 同级
-            QString audioDir = QDir::cleanPath(QCoreApplication::applicationDirPath() + "/audio");
-            QDir().mkpath(audioDir);
-
-            QString path = audioDir + "/" + word + ".mp3";
-
-            if (QFile::exists(path)) {
-                AudioManager::instance().play(path);
-                emit statusMessage(QString("播放：%1").arg(word));
-            } else {
-                emit statusMessage(QString("音频不存在：%1").arg(path));
-            }
-  //
-
-    // 确保 audio 目录存在（不存在则自动创建）
-   // if (!currentDir.exists("audio")) {
-      //  currentDir.mkpath("audio");
-   // }
-
-    // 规范地拼接文件路径 (自动处理斜杠)
-   // QString path = currentDir.filePath(QString("audio/%1.mp3").arg(word));
-
-    // 判断文件是否存在并播放
-    if (QFile::exists(path)) {
-        AudioManager::instance().play(path);
-        emit statusMessage(QString("播放：%1").arg(word));
-        return;
-    } else {
-        // 建议增加文件不存在时的提示
-        emit statusMessage(QString("音频不存在：%1").arg(path));
-    }
-
-
-
-    QString url = "https://dict.youdao.com/dictvoice?audio=" + word + "&type=2";
-    emit statusMessage(QString("下载中：%1").arg(word));
-    Downloader::instance().download(url, path);
-    connect(&Downloader::instance(), &Downloader::finished,
-            this, [this, path](const QString &p){
-                if (p == path) {
-                    AudioManager::instance().play(p);
-                    emit statusMessage("下载完成，开始播放");
-                }
+        if (model) {
+            model->appendRow({
+                new QStandardItem(word),
+                new QStandardItem(phon),
+                new QStandardItem(def)
             });
-}
 
+            // 新词：滚到最底并高亮
+            QModelIndex lastIndex = model->index(model->rowCount() - 1, 0);
+            ui->tableView->scrollTo(lastIndex, QAbstractItemView::PositionAtBottom);
+            ui->tableView->setCurrentIndex(lastIndex);
+        }
+        emit statusMessage(QString("添加成功：%1").arg(word));
+    } else {
+        // 处理添加失败（重复或总表无词）
+        QVector<QVariantMap> gradeWords = manager()->wordsOfGrade(grade);
+        bool existsInGrade = false;
+        int existRow = -1;
 
-    void WordBookTab::showEvent(QShowEvent *event)
-    {
-        QWidget::showEvent(event);
+        for (int i = 0; i < gradeWords.size(); ++i) {
+            if (gradeWords[i]["word"].toString().compare(word, Qt::CaseInsensitive) == 0) {
+                existsInGrade = true;
+                existRow = i; // 记录重复单词在模型中的行号
+                break;
+            }
+        }
 
-        // ✅ 如果当前年级为空，尝试从 WordManager 获取
-        if (currentGrade().isEmpty()) {
-            if (manager()) {
-                QString grade = manager()->currentGrade();
-                if (!grade.isEmpty()) {
-                    onGradeChanged(grade);
-                }
+        if (existsInGrade) {
+            emit statusMessage(QString("已存在：%1（未重复添加）").arg(word));
+            // ✅ 已存在：滚动到原单词并高亮
+            if (model && existRow >= 0 && existRow < model->rowCount()) {
+                QModelIndex existIndex = model->index(existRow, 0);
+                ui->tableView->scrollTo(existIndex, QAbstractItemView::PositionAtCenter); // 居中显示
+                ui->tableView->setCurrentIndex(existIndex);
             }
         } else {
-            onGradeChanged(currentGrade());
+            emit statusMessage(QString("总表无此词，无法添加：%1").arg(word));
         }
     }
 
+    // 清空输入框
+    ui->editWord->clear();
+    ui->editPhonetic->clear();
+    ui->editDef->clear();
+    ui->editExample->clear();
+    ui->editWord->setFocus();
+}
+
+
+void WordBookTab::playWord(const QString &word)
+{
+    ui->btnplayer->setEnabled(false);
+
+
+    // ✅ 全部交给 AudioPlayer：内部自动处理
+    //    1. exe/audio/<word>.mp3 存在 -> 直接播
+    //    2. 不存在 -> Downloader 下载 -> 播
+    //    3. 正在下载 -> 合并请求，不重复下载
+    //    4. 坏文件(<=100B) -> 自动删除，下次重试
+    //   （缓存目录 = applicationDirPath()/audio，由 AudioPlayer 自己管）
+    AudioPlayer::instance().play(word);
+    emit statusMessage(QString("播放：%1").arg(word));
+}
+
+void WordBookTab::on_btnplayer_clicked()
+{
+    QString word = ui->editWord->text().trimmed().toLower();
+    if (word.isEmpty()) {
+        emit statusMessage("请先输入或选中一个单词");
+        return;
+    }
+    playWord(word);
+}
+
+void WordBookTab::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    if (manager())
+        onGradeChanged(manager()->currentGrade());
+}

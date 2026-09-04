@@ -25,9 +25,13 @@ private slots:
     void on_btnAddGrade_clicked();
     void on_btnDelGrade_clicked();
 
+private slots:
+    void onTestStarted();
+    void onTestFinished();
 private:
     Ui::MainWindow *ui;
-
+private:
+    bool m_testInProgress = false;
     // ✅ 全局数据（唯一数据源）
     WordManager *m_mgr;
  QString m_pendingGrade;   // ✅ 你自己的

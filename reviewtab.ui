@@ -104,9 +104,9 @@
       </spacer>
      </item>
      <item>
-      <widget class="QPushButton" name="btnDontKnow">
+      <widget class="QPushButton" name="btnStart">
        <property name="text">
-        <string>不知道</string>
+        <string>开始</string>
        </property>
       </widget>
      </item>
@@ -122,6 +122,13 @@
         </size>
        </property>
       </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnDontKnow">
+       <property name="text">
+        <string>不知道</string>
+       </property>
+      </widget>
      </item>
      <item>
       <widget class="QPushButton" name="btnGotIt">

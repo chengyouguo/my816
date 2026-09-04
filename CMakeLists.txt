@@ -25,13 +25,15 @@ set(SOURCES
     reviewtab.h
     dictationtab.cpp
     dictationtab.h
-    audiofetcher.cpp
-    audiofetcher.h
-    audiomanager.cpp
+    WeightedWordPool.h
+    WeightedWordPool.cpp
+
     downloader.cpp
 )
 
-qt_add_executable(GradeWordApp ${SOURCES})
+qt_add_executable(GradeWordApp ${SOURCES}
+    audioplayer.cpp
+    audioplayer.h)
 
 set_target_properties(GradeWordApp PROPERTIES
     WIN32_EXECUTABLE TRUE)

@@ -35,4 +35,7 @@ private:
     int  m_correct = 0;
 signals:                   // <-- 加上这段
     void statusMessage(const QString &msg);
+signals:
+    void testStarted();
+    void testFinished();
 };

@@ -1,8 +1,8 @@
-#pragma once
+#ifndef DOWNLOADER_H
+#define DOWNLOADER_H
+
 #include <QObject>
 #include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QString>
 
 class Downloader : public QObject
 {
@@ -10,16 +10,15 @@ class Downloader : public QObject
 public:
     static Downloader& instance();
 
-    void download(const QString &url, const QString &savePath);
+    void download(const QString& url, const QString& savePath);
 
 signals:
-    void finished(const QString &path);
-    void error(const QString &msg);
+    void finished(const QString& savePath);
+    void error(const QString& err);
 
 private:
-    explicit Downloader(QObject *parent = nullptr);
-    ~Downloader() = default;
-    Q_DISABLE_COPY(Downloader)
-
-    QNetworkAccessManager *m_nam;
+    explicit Downloader(QObject* parent = nullptr);
+    QNetworkAccessManager* m_nam = nullptr;
 };
+
+#endif
