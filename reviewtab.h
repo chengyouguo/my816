@@ -1,22 +1,18 @@
 #ifndef REVIEWTAB_H
 #define REVIEWTAB_H
 
-#include "WeightedWordPool.h"
 #include "basetab.h"
-#include <QWidget>
-#include <QQueue>
 #include <QVariantMap>
+#include <QVector>
 #include <QTimer>
 
 namespace Ui { class ReviewTab; }
-class WordManager;
 
 class ReviewTab : public BaseTab
 {
     Q_OBJECT
-
 public:
-    explicit ReviewTab(WordManager *mgr, QWidget *parent = nullptr);
+    explicit ReviewTab(QWidget *parent = nullptr);
     ~ReviewTab();
 
     void onGradeChanged(const QString &grade) override;
@@ -31,33 +27,23 @@ private slots:
     void on_btnDontKnow_clicked();
 
 private:
-    // ★ 状态枚举
-    enum class State {
-        Idle,        // 初始/完成，等待按开始
-        Showing,     // 显示单词，可操作
-        Revealing,   // 已揭示释义，等待自动下一步
-        Advancing    // 正在加载下一个（防重入）
+    enum class State { Idle, Showing, Revealing, Advancing };
 
-    };
-   QList<QVariantMap> m_words;
-    void setState(State s);          // ★ 唯一的状态切换入口
-    void loadNextWord();
+    void setState(State s);
+    void showNextWord();
+    void nextWord();
     void playAudio(const QString &word);
-    void refreshButtons();           // ★ 根据状态更新按钮可用状态
 
     Ui::ReviewTab *ui;
-
-    WeightedWordPool m_pool;                // 换成你的实际类型
-    QQueue<QVariantMap> m_reviewLater;
-    QVariantMap m_currentWord;
-
-    State m_state = State::Idle;
     bool m_active = false;
-    bool m_resumeMode = false;
+    State m_state = State::Idle;
 
-    QTimer m_revealTimer;           // 揭示释义后的等待定时器
-signals:                   // <-- 加上这段
-    void statusMessage(const QString &msg);
+    QVector<QVariantMap> m_wordQueue;
+    int m_queueIndex = 0;
+    QVector<QVariantMap> m_reviewLater;
+    QVariantMap m_current;
+
+    QTimer m_revealTimer;
 };
 
 #endif // REVIEWTAB_H

@@ -1,0 +1,5 @@
+C:/Users/pnm/Desktop/mygithub/build/Desktop_Qt_6_11_2_MinGW_64_bit_Release/CMakeFiles/GradeWordApp.dir
+C:/Users/pnm/Desktop/mygithub/build/Desktop_Qt_6_11_2_MinGW_64_bit_Release/CMakeFiles/edit_cache.dir
+C:/Users/pnm/Desktop/mygithub/build/Desktop_Qt_6_11_2_MinGW_64_bit_Release/CMakeFiles/rebuild_cache.dir
+C:/Users/pnm/Desktop/mygithub/build/Desktop_Qt_6_11_2_MinGW_64_bit_Release/CMakeFiles/GradeWordApp_autogen_timestamp_deps.dir
+C:/Users/pnm/Desktop/mygithub/build/Desktop_Qt_6_11_2_MinGW_64_bit_Release/CMakeFiles/GradeWordApp_autogen.dir

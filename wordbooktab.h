@@ -12,7 +12,7 @@ class WordBookTab : public BaseTab
 {
     Q_OBJECT
 public:
-    explicit WordBookTab(WordManager *mgr, QWidget *parent = nullptr);
+    explicit WordBookTab( QWidget *parent = nullptr);
     ~WordBookTab();
 
 signals:

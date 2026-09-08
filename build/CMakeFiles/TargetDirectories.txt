@@ -1,0 +1,5 @@
+C:/Users/pnm/Desktop/mygithub/build/CMakeFiles/GradeWordApp.dir
+C:/Users/pnm/Desktop/mygithub/build/CMakeFiles/edit_cache.dir
+C:/Users/pnm/Desktop/mygithub/build/CMakeFiles/rebuild_cache.dir
+C:/Users/pnm/Desktop/mygithub/build/CMakeFiles/GradeWordApp_autogen_timestamp_deps.dir
+C:/Users/pnm/Desktop/mygithub/build/CMakeFiles/GradeWordApp_autogen.dir

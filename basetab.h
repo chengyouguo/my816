@@ -1,4 +1,6 @@
-#pragma once
+#ifndef BASETAB_H
+#define BASETAB_H
+
 #include <QWidget>
 #include <QString>
 #include "wordmanager.h"
@@ -7,33 +9,28 @@ class BaseTab : public QWidget
 {
     Q_OBJECT
 public:
-    explicit BaseTab(WordManager *mgr, QWidget *parent = nullptr);
-    ~BaseTab() override = default;
+    explicit BaseTab(QWidget *parent = nullptr);
+    virtual ~BaseTab() = default;
 
-    // ✅ 外部主动刷新
-    void refresh();
-
-    // ✅ 子类调用：首次设置年级
-    void setGrade(const QString &grade);
-
-protected:
-    // ✅ 子类必须实现：年级变化唯一入口
-    virtual void onGradeChanged(const QString &grade) = 0;
-
-    // ✅ 子类可选覆写：刷新逻辑（默认 = 再调一次 onGradeChanged）
-    virtual void onRefresh();
-
-    // ✅ 只读接口
-    WordManager *manager() const { return m_mgr; }
+    // 子类通过这两个访问总管
+    WordManager *manager() const { return WordManager::instance(); }
     QString currentGrade() const { return m_currentGrade; }
 
-    // ✅ 子类 showEvent 直接调这个，不用自己写判断
-    void ensureGradeAndShow();
+signals:
+    void statusMessage(const QString &msg);
 
-private slots:
+public slots:
+    virtual void onGradeChanged(const QString &grade) = 0;
+
+protected slots:
     void handleGradeChanged(const QString &grade);
 
-private:
-    WordManager *m_mgr = nullptr;
+protected:
+    void setGrade(const QString &grade);
+    void ensureGradeAndShow();
+    void refresh();
+
     QString m_currentGrade;
 };
+
+#endif // BASETAB_H

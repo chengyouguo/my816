@@ -1,20 +1,26 @@
-#pragma once
+#ifndef DICTATIONTAB_H
+#define DICTATIONTAB_H
+
 #include "basetab.h"
-#include <QMap>
-#include <QString>
+#include <QVariantMap>
+#include <QVector>
 
-// 前置声明，告诉编译器 Ui::DictationTab 是个类，具体定义在别处
-namespace Ui {
-class DictationTab;
-}
+namespace Ui { class DictationTab; }
 
-class DictationTab : public BaseTab {
+class DictationTab : public BaseTab
+{
     Q_OBJECT
 public:
-    explicit DictationTab(WordManager *mgr, QWidget *parent = nullptr);
-    ~DictationTab() override;
+    explicit DictationTab(QWidget *parent = nullptr);
+    ~DictationTab();
 
     void onGradeChanged(const QString &grade) override;
+
+signals:
+    void testStarted();
+    void testFinished();
+
+protected:
     void showEvent(QShowEvent *event) override;
 
 private slots:
@@ -23,19 +29,16 @@ private slots:
     void onSubmit();
 
 private:
+    void resetUI();
     void loadNext();
     void finishTest();
-    void resetUI();
 
-    Ui::DictationTab *ui;          // ← 这里只放指针，没问题
-    QList<QMap<QString, QVariant>> m_bank;
-    QMap<QString, QVariant>        m_current;
-    int  m_index = 0;
-    int  m_total = 10;
-    int  m_correct = 0;
-signals:                   // <-- 加上这段
-    void statusMessage(const QString &msg);
-signals:
-    void testStarted();
-    void testFinished();
+    Ui::DictationTab *ui;
+    QVector<QVariantMap> m_bank;
+    QVariantMap m_current;
+    int m_index = 0;
+    int m_correct = 0;
+    int m_total = 10;
 };
+
+#endif // DICTATIONTAB_H

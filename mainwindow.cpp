@@ -3,6 +3,7 @@
 #include "reviewtab.h"
 #include "dictationtab.h"
 #include "ui_mainwindow.h"
+#include <QDebug>
 #include <QLabel>
 #include <QMenuBar>
 #include <QSettings>
@@ -14,44 +15,35 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
 
     // ─────────────────────────────
-    // 1. 初始化数据库
+    // 1. 初始化单例数据库
     // ─────────────────────────────
-    m_mgr = new WordManager(this);
-    if (!m_mgr->init("words.db")) {
-        statusBar()->showMessage("数据库初始化失败", 5000);
-        return;
-    }
-//
-    m_mgr->initCurrentGrade();
+   //if (!WordManager::instance()->init("words.db")) {
+       // statusBar()->showMessage("数据库初始化失败", 5000);
+   //  return;
+ //}
 
-  //  qDebug() << "DEBUG startup grade:" << m_mgr->currentGrade();
     // ─────────────────────────────
-    // 3. 填充下拉框（关键：blockSignals）
+    // 2. 填充下拉框
+    // ─────────────────────────────
     ui->comboGrade->blockSignals(true);
-    ui->comboGrade->addItems(m_mgr->grades());
+    ui->comboGrade->addItems(WordManager::instance()->grades());
     ui->comboGrade->blockSignals(false);
 
+    // ─────────────────────────────
+    // 3. 恢复上次年级
+    // ─────────────────────────────
     QSettings settings;
     QString lastGrade = settings.value("lastGrade", "").toString();
+    QStringList grades = WordManager::instance()->grades();
 
-    if (!lastGrade.isEmpty() && m_mgr->gradeExists(lastGrade)) {
-        m_mgr->setCurrentGrade(lastGrade);
-        ui->comboGrade->setCurrentText(lastGrade);   // ✅ 关键：UI 选中
-        qDebug() << "DEBUG [Constructor] Using saved grade:" << lastGrade;
-    } else {
-        QStringList grades = m_mgr->grades();
-        if (!grades.isEmpty()) {
-            m_mgr->setCurrentGrade(grades.first());
-            ui->comboGrade->setCurrentText(grades.first()); // ✅ 关键：UI 选中
-            qDebug() << "DEBUG [Constructor] No saved grade, using first grade:" << grades.first();
-        }
+    if (!lastGrade.isEmpty() && grades.contains(lastGrade)) {
+        WordManager::instance()->setCurrentGrade(lastGrade);
+        ui->comboGrade->setCurrentText(lastGrade);
+    } else if (!grades.isEmpty()) {
+        WordManager::instance()->setCurrentGrade(grades.first());
+        QSettings().setValue("lastGrade", grades.first()); // ← 就加这行
+        ui->comboGrade->setCurrentText(grades.first());
     }
-
-     //对齐 UI 与 Manager
-    const QString cur = m_mgr->currentGrade();
-    const int idx = ui->comboGrade->findText(cur);
-    if (idx >= 0)
-        ui->comboGrade->setCurrentIndex(idx);
 
     // ─────────────────────────────
     // 4. 窗口基础属性
@@ -65,16 +57,17 @@ MainWindow::MainWindow(QWidget *parent)
     statusBar()->addPermanentWidget(permanent);
 
     // ─────────────────────────────
-    // 5. 三个业务 Tab（只读当前年级）
+    // 5. 三个业务 Tab（只传 parent）
     // ─────────────────────────────
-    wordBook     = new WordBookTab(m_mgr, this);
-    reviewTab    = new ReviewTab(m_mgr, this);
-    dictationTab = new DictationTab(m_mgr, this);
+    wordBook     = new WordBookTab(this);
+    reviewTab    = new ReviewTab(this);
+    dictationTab = new DictationTab(this);
 
     ui->tabWidget->addTab(wordBook,    "单词本");
     ui->tabWidget->addTab(reviewTab,   "听看");
     ui->tabWidget->addTab(dictationTab,"听写");
-
+    // 强制触发一次年级变化信号，让所有页面刷新
+    emit WordManager::instance()->gradeChanged(WordManager::instance()->currentGrade());
     // ─────────────────────────────
     // 6. 年级管理按钮
     // ─────────────────────────────
@@ -84,28 +77,15 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::on_btnDelGrade_clicked);
 
     // ─────────────────────────────
-    // 7. 下拉框变化 → 唯一修改入口
-    connect(ui->btnApplyGrade, &QPushButton::clicked, this, [this](){
-        if (m_pendingGrade.isEmpty())
-            return;
-
-        // 真正生效
-        m_mgr->setCurrentGrade(m_pendingGrade);
-        QSettings().setValue("lastGrade", m_pendingGrade);
-
-        qDebug() << "DEBUG [Apply] Grade committed:" << m_pendingGrade;
-        statusBar()->showMessage("年级已切换：" + m_pendingGrade);
-    });
+    // 7. 下拉框变化 → 直接生效
     // ─────────────────────────────
-    connect(ui->comboGrade, &QComboBox::currentTextChanged,
-            this, [&](const QString &grade){
-                if (!grade.isEmpty())
-                    m_pendingGrade = grade;
-
-              //  QSettings().setValue("lastGrade", grade);
-                // 【调试】每次切换时，立即打印存了什么
-                // ─────────────────────────────
-                qDebug() << "DEBUG [Switch] Saved grade to QSettings:" << grade;
+    connect(ui->comboGrade, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int index){
+                if (index < 0) return;
+                QString g = ui->comboGrade->itemText(index);
+                WordManager::instance()->setCurrentGrade(g);
+                QSettings().setValue("lastGrade", g);
+                statusBar()->showMessage("年级已切换：" + g);
             });
 
     // ─────────────────────────────
@@ -115,22 +95,23 @@ MainWindow::MainWindow(QWidget *parent)
         if (msg.startsWith("当前年级"))
             permanent->setText(msg);
         else
-           // statusBar()->showMessage(msg, 3000);
-        statusBar()->showMessage(msg);
+            statusBar()->showMessage(msg);
     };
-    connect(wordBook,     &WordBookTab::statusMessage, this, handle);
-    connect(reviewTab,    &ReviewTab::statusMessage,    this, handle);
-    connect(dictationTab, &DictationTab::statusMessage, this, handle);
+    connect(wordBook,     &WordBookTab::statusMessage,     this, handle);
+    connect(reviewTab,    &ReviewTab::statusMessage,       this, handle);
+    connect(dictationTab, &DictationTab::statusMessage,    this, handle);
 
     // 听写测试锁定 Tab
-    connect(dictationTab, &DictationTab::testStarted, this, &MainWindow::onTestStarted);
-    connect(dictationTab, &DictationTab::testFinished, this, &MainWindow::onTestFinished);
+    connect(dictationTab, &DictationTab::testStarted,
+            this, &MainWindow::onTestStarted);
+    connect(dictationTab, &DictationTab::testFinished,
+            this, &MainWindow::onTestFinished);
+
     // ─────────────────────────────
     // 9. 启动页
     // ─────────────────────────────
     ui->tabWidget->setCurrentIndex(1);
     statusBar()->showMessage("程序已启动，数据库已连接");
-
 }
 
 MainWindow::~MainWindow()
@@ -147,7 +128,7 @@ void MainWindow::on_btnAddGrade_clicked()
     if (g.isEmpty())
         return;
 
-    if (m_mgr->addGrade(g)) {
+    if (WordManager::instance()->addGrade(g)) {
         ui->comboGrade->addItem(g);
         ui->editNewGrade->clear();
         statusBar()->showMessage("已添加年级：" + g);
@@ -157,49 +138,48 @@ void MainWindow::on_btnAddGrade_clicked()
 }
 
 // ─────────────────────────────
-// 删除年级（含“新当前年级保存”）
+// 删除年级
 // ─────────────────────────────
 void MainWindow::on_btnDelGrade_clicked()
 {
-    const int index = ui->comboGrade->currentIndex();
+    int index = ui->comboGrade->currentIndex();
     if (index < 0)
         return;
 
-    const QString g = ui->comboGrade->itemText(index);
+    QString g = ui->comboGrade->itemText(index);
     if (ui->comboGrade->count() <= 1) {
         statusBar()->showMessage("至少保留一个年级");
         return;
     }
 
-    if (m_mgr->removeGrade(g)) {
+    if (WordManager::instance()->removeGrade(g)) {
         ui->comboGrade->removeItem(index);
 
-        // 如果删掉的是当前年级 → 自动切 + 保存
-        if (m_mgr->currentGrade() == g) {
-            const QString replacement = ui->comboGrade->currentText();
-            ui->comboGrade->setCurrentIndex(ui->comboGrade->currentIndex());
-            m_mgr->setCurrentGrade(replacement);
+        // 删掉的是当前年级 → 自动切到新选中项
+        if (WordManager::instance()->currentGrade() == g) {
+            QString replacement = ui->comboGrade->currentText();
+            WordManager::instance()->setCurrentGrade(replacement);
             QSettings().setValue("lastGrade", replacement);
         }
 
         statusBar()->showMessage("已删除年级：" + g);
     }
 }
+
+// ─────────────────────────────
+// 听写锁定
+// ─────────────────────────────
 void MainWindow::onTestStarted()
 {
     m_testInProgress = true;
 
-    // 禁用其他 Tab（听写 Tab 本身不禁用）
     int count = ui->tabWidget->count();
     for (int i = 0; i < count; ++i) {
-        if (ui->tabWidget->widget(i) != dictationTab) {
+        if (ui->tabWidget->widget(i) != dictationTab)
             ui->tabWidget->setTabEnabled(i, false);
-        }
     }
 
-    // 禁用年级切换相关控件（可选）
     ui->comboGrade->setEnabled(false);
-    ui->btnApplyGrade->setEnabled(false);
     ui->btnAddGrade->setEnabled(false);
     ui->btnDelGrade->setEnabled(false);
 }
@@ -208,16 +188,11 @@ void MainWindow::onTestFinished()
 {
     m_testInProgress = false;
 
-    // 恢复所有 Tab
     int count = ui->tabWidget->count();
-    for (int i = 0; i < count; ++i) {
+    for (int i = 0; i < count; ++i)
         ui->tabWidget->setTabEnabled(i, true);
-    }
 
-    // 恢复年级切换控件
     ui->comboGrade->setEnabled(true);
-    ui->btnApplyGrade->setEnabled(true);
     ui->btnAddGrade->setEnabled(true);
     ui->btnDelGrade->setEnabled(true);
 }
-

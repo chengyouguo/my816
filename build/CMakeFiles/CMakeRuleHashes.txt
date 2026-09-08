@@ -1,0 +1,3 @@
+# Hashes of file build rules.
+c0f2b2ab24b612c6407dd4c43fb1cd7b CMakeFiles/GradeWordApp_autogen
+f5b81f4b8d754fbe8abd7f1bf74e05aa GradeWordApp_autogen/timestamp

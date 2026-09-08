@@ -7,15 +7,18 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QMessageBox>
-
+#include <QDir>
+#include "wordmanager.h"
 int main(int argc, char *argv[])
 {
     // ✅ 建议加上这两行，建立专属配置空间
     QCoreApplication::setOrganizationName("Mybaelpnm");       // 换成你的组织名
     QCoreApplication::setApplicationName("GradeWordApp"); // 换成你的应用名
+    // ★ 必须在创建任何 Tab 之前调用一次
+
 
     QApplication a(argc, argv);
-    a.setApplicationName("WordApp");
+   // a.setApplicationName("WordApp");
 
     const QString serverName = "WordApp-SingleInstance";
 
@@ -53,10 +56,22 @@ int main(int argc, char *argv[])
             }
         }
     });
+    QString exeDir = QCoreApplication::applicationDirPath();
+    QString dbPath = exeDir + "/mypro_data/words.db";
+
+    QDir().mkpath(exeDir + "/mypro_data");
+
+   // db.setDatabaseName(dbPath);
+   // qDebug() << "[main] about to init, instance =" << WordManager::instance();
+   // WordManager::instance()->init(dbPath);
+    qDebug() << "[main] init done";
+    //
+    WordManager::instance()->init(dbPath);  // 数据库文件路径
 
     // === 你的正常启动逻辑 ===
    // QApplication a(argc, argv);
     MainWindow w;
+//qDebug() << "[main] MainWindow constructed, about to show";
     w.show();
     return a.exec();
 }

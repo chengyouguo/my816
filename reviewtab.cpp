@@ -1,18 +1,15 @@
 #include "reviewtab.h"
 #include "ui_reviewtab.h"
 #include "wordmanager.h"
-#include "audiomanager.h"
 #include "audioplayer.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QDebug>
-#include <QScopeGuard>
 
-ReviewTab::ReviewTab(WordManager *mgr, QWidget *parent)
-    : BaseTab(mgr, parent)
+ReviewTab::ReviewTab(QWidget *parent)
+    : BaseTab(parent)
     , ui(new Ui::ReviewTab)
     , m_active(false)
-    , m_resumeMode(false)
 {
     ui->setupUi(this);
 
@@ -20,12 +17,11 @@ ReviewTab::ReviewTab(WordManager *mgr, QWidget *parent)
     connect(ui->btnGotIt,    &QPushButton::clicked, this, &ReviewTab::on_btnGotIt_clicked);
     connect(ui->btnDontKnow, &QPushButton::clicked, this, &ReviewTab::on_btnDontKnow_clicked);
 
-    // ★ 定时器只配置一次，永不重复 connect
     m_revealTimer.setSingleShot(true);
     connect(&m_revealTimer, &QTimer::timeout, this, [this]() {
         if (m_active && m_state == State::Revealing) {
             setState(State::Advancing);
-            loadNextWord();
+            nextWord();
         }
     });
 
@@ -33,12 +29,6 @@ ReviewTab::ReviewTab(WordManager *mgr, QWidget *parent)
     ui->lblPhonetic->clear();
     ui->lblDef->clear();
     setState(State::Idle);
-
-    QString grade = manager()->currentGrade();
-    if (grade.isEmpty())
-        emit statusMessage("请先在主窗口选择年级");
-    else
-        emit statusMessage(QString("听看待命：%1").arg(grade));
 }
 
 ReviewTab::~ReviewTab()
@@ -46,18 +36,12 @@ ReviewTab::~ReviewTab()
     delete ui;
 }
 
-/* ================= 状态管理（核心） ================= */
+/* ================= 状态 ================= */
 
 void ReviewTab::setState(State s)
 {
-    if (m_state == s)
-        return;
+    if (m_state == s) return;
     m_state = s;
-    refreshButtons();
-}
-
-void ReviewTab::refreshButtons()
-{
     switch (m_state) {
     case State::Idle:
         ui->btnStart->setEnabled(true);
@@ -78,46 +62,29 @@ void ReviewTab::refreshButtons()
     }
 }
 
-/* ================= 年级变化 ================= */
+/* ================= 年级切换 ================= */
 
 void ReviewTab::onGradeChanged(const QString &grade)
 {
-    if (grade.isEmpty() || !manager())
-        return;
-
+    Q_UNUSED(grade)
     m_revealTimer.stop();
-    m_pool.reset(QVector<QVariantMap>());
+    m_wordQueue.clear();
+    m_queueIndex = 0;
     m_reviewLater.clear();
-    m_currentWord.clear();
+    m_current.clear();
     ui->lblWord->clear();
     ui->lblPhonetic->clear();
     ui->lblDef->clear();
     setState(State::Idle);
-
-    emit statusMessage(QString("已切换年级：%1，按开始键加载").arg(grade));
+    emit statusMessage(QString("已切换年级：%1").arg(grade));
 }
 
-/* ================= 生命周期 ================= */
+/* ================= 显示/隐藏 ================= */
 
 void ReviewTab::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
     m_active = true;
-
-    QString grade = manager()->currentGrade();
-    if (grade.isEmpty())
-        return;
-
-    if (!m_resumeMode && m_state == State::Idle && m_pool.isEmpty()) {
-        m_pool.reset(manager()->getWeightedWordsOfGrade(grade));
-        m_reviewLater.clear();
-        m_currentWord.clear();
-        ui->lblWord->clear();
-        ui->lblPhonetic->clear();
-        ui->lblDef->clear();
-    }
-    emit statusMessage(QString("听看模式：%1（剩余 %2 个）")
-                           .arg(grade).arg(m_pool.remaining()));
 }
 
 void ReviewTab::hideEvent(QHideEvent *event)
@@ -128,138 +95,95 @@ void ReviewTab::hideEvent(QHideEvent *event)
     AudioPlayer::instance().stop();
 }
 
-/* ================= 按钮事件 ================= */
-
+/* ================= 开始 ================= */
 
 void ReviewTab::on_btnStart_clicked()
 {
-    if (!manager() || !ui)
-        return;
-
-    m_revealTimer.stop();              // ← 用 m_revealTimer，不是 m_autoNextTimer
-    m_state = State::Idle;             // ← 重置状态，不需要 m_loadingNext
-
-    QString grade = manager()->currentGrade();
-    if (grade.isEmpty()) {
-        emit statusMessage("请先在主窗口选择年级");
-        return;
-    }
-
-    // ★ 用你实际有的函数名
-    m_pool.reset(manager()->getWeightedWordsOfGrade(grade));
+    QString grade = currentGrade();
+    m_wordQueue = manager()->getReadList(grade, 10);
+    m_queueIndex = 0;
     m_reviewLater.clear();
-    m_currentWord.clear();
 
-    if (m_pool.isEmpty()) {
-        ui->lblWord->clear();
-        ui->lblPhonetic->clear();
-        ui->lblDef->clear();
-        setState(State::Idle);
-        emit statusMessage("本年级暂无可复习单词");
+    if (m_wordQueue.isEmpty()) {
+        emit statusMessage("当前年级没有单词！");
         return;
     }
+
+    m_current = m_wordQueue.first();
+    showNextWord();
+    setState(State::Showing);
+}
+
+/* ================= 认识 / 不认识 ================= */
+
+void ReviewTab::on_btnGotIt_clicked()
+{
+    if (m_state != State::Showing || m_current.isEmpty())
+        return;
+
+    QString word = m_current["word"].toString();
+    manager()->onReadResult(currentGrade(), word, true); // true = 认识
+    ui->lblDef->setText(m_current["definition"].toString());
 
     setState(State::Advancing);
-    loadNextWord();
+    nextWord();
 }
 
 void ReviewTab::on_btnDontKnow_clicked()
 {
-    if (m_state != State::Showing)
+    if (m_state != State::Showing || m_current.isEmpty())
         return;
 
-    const QString word = m_currentWord["word"].toString();
-    const QString grade = manager()->currentGrade();  // ★ 这行可能崩
+    QString word = m_current["word"].toString();
+    manager()->onReadResult(currentGrade(), word, false); // false = 不认识
+    ui->lblDef->setText(m_current["definition"].toString());
+    m_reviewLater.append(m_current);
 
-    ui->lblDef->setText(m_currentWord["definition"].toString());
-    manager()->markWordUnknown(grade, word);
-    ui->lblDef->setText(m_currentWord["definition"].toString());
-    manager()->markWordUnknown(manager()->currentGrade(), m_currentWord["word"].toString());
-    emit statusMessage(QString("待巩固：%1（剩余 %2 个）")
-                           .arg(m_currentWord["word"].toString())
-                           .arg(m_pool.remaining()));
-
-    m_reviewLater.enqueue(m_currentWord);
-
-    // ★ 进入 Revealing，等待定时器自动下一步
     setState(State::Revealing);
     m_revealTimer.start(1500);
 }
 
-/* ================= 业务私有 ================= */
+/* ================= 推进 ================= */
 
-void ReviewTab::loadNextWord()
+void ReviewTab::nextWord()
 {
-    if (m_state != State::Advancing)
-        return;
-    Q_ASSERT(manager() != nullptr);
-    Q_ASSERT(ui != nullptr);
-    if (!manager() || !ui) {
-        qDebug() << "manager() or ui is null! state=" << (int)m_state;
-        return;
-    }
-    auto guard = qScopeGuard([this]() {
-        if (m_state == State::Advancing)
-            setState(State::Idle);
-    });
-
-    if (m_pool.isEmpty()) {
+    m_queueIndex++;
+    if (m_queueIndex >= m_wordQueue.size()) {
         if (!m_reviewLater.isEmpty()) {
-            QVector<QVariantMap> reviewList;
-            while (!m_reviewLater.isEmpty())
-                reviewList.append(m_reviewLater.dequeue());
-            m_pool.reset(reviewList);
-            emit statusMessage(QString("开始复习错词，共 %1 个").arg(m_pool.remaining()));
+            m_wordQueue = m_reviewLater;
+            m_reviewLater.clear();
+            m_queueIndex = 0;
+            emit statusMessage(QString("开始复习错词，共 %1 个").arg(m_wordQueue.size()));
         } else {
             ui->lblWord->clear();
             ui->lblPhonetic->clear();
             ui->lblDef->clear();
-            emit statusMessage("本年级复习完成！");
+            setState(State::Idle);
+            emit statusMessage("🎉 本年级复习完成！");
             return;
         }
     }
 
-    QVariantMap w = m_pool.draw();
-    if (w.isEmpty()) {
-        emit statusMessage("本年级复习完成！");
-        return;
-    }
+    m_current = m_wordQueue.at(m_queueIndex);
+    showNextWord();
+}
 
-    m_currentWord = w;
-    ui->lblWord->setText(w["word"].toString());
-    ui->lblPhonetic->setText(w["phonetic"].toString());
+/* ================= 显示 ================= */
+
+void ReviewTab::showNextWord()
+{
+    ui->lblWord->setText(m_current["word"].toString());
+    ui->lblPhonetic->setText(m_current["phonetic"].toString());
     ui->lblDef->clear();
-    emit statusMessage(QString("剩余 %1 个").arg(m_pool.remaining()));
-    playAudio(w["word"].toString());
-
+    playAudio(m_current["word"].toString());
+    emit statusMessage(QString("剩余 %1 个").arg(m_wordQueue.size() - m_queueIndex));
     setState(State::Showing);
 }
 
+/* ================= 音频 ================= */
+
 void ReviewTab::playAudio(const QString &word)
 {
-  //  Q_UNUSED(word);
-    // 只播本地有效文件，不下载
-
-
-
-  QString path = QDir::currentPath() + "/audio/" + word + ".mp3";
-  if (QFile::exists(path)) {
-      //  AudioManager::instance().play(path);
-      AudioPlayer::instance().play(word);
-      // emit statusMessage(QString("播放：%1").arg(word));
-  } else {
-      emit statusMessage(QString("音频不存在：%1，已跳过").arg(word));
-
-
-  }
-}
-
-void ReviewTab::on_btnGotIt_clicked()
-{
-    if (m_state != State::Showing) return;
-    // 标记已知（错词数-1）
-    manager()->markWordKnown(manager()->currentGrade(), m_currentWord["word"].toString());
-    ui->lblDef->setText(m_currentWord["definition"].toString());
-    setState(State::Advancing);
-    loadNextWord();
+    if (word.isEmpty()) return;
+    AudioPlayer::instance().play(word);
 }
